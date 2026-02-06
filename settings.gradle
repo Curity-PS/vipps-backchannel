@@ -1,0 +1,16 @@
+pluginManagement {
+    repositories {
+        mavenLocal()
+        maven {
+            url 'https://maven.pkg.github.com/Curity-PS/curity-plugin-dev'
+            credentials {
+                username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
+                password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.token')
+            }
+        }
+
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'vipps-backchannel'
