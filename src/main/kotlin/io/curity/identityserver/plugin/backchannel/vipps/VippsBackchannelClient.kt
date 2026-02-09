@@ -16,17 +16,17 @@
 
 package io.curity.identityserver.plugin.backchannel.vipps
 
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.DEFAULT_SCOPE
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.GRANT_TYPE_CIBA
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.HEADER_AUTHORIZATION
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.MSISDN_PREFIX
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.PARAM_AUTH_REQ_ID
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.PARAM_BINDING_MESSAGE
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.PARAM_GRANT_TYPE
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.PARAM_LOGIN_HINT
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.PARAM_SCOPE
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.RESPONSE_AUTH_REQ_ID
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.Companion.RESPONSE_ERROR
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.DEFAULT_SCOPE
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.GRANT_TYPE_CIBA
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.HEADER_AUTHORIZATION
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.MSISDN_PREFIX
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_AUTH_REQ_ID
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_BINDING_MESSAGE
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_GRANT_TYPE
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_LOGIN_HINT
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_SCOPE
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_AUTH_REQ_ID
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryConfiguration
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryManagedObject
 import java.net.URI
