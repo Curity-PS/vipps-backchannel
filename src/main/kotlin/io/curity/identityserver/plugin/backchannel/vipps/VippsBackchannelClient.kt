@@ -63,14 +63,6 @@ class VippsBackchannelClient(
     ): String {
         logger.debug("Initiating backchannel authentication for user: $loginHint")
 
-        val formattedLoginHint =
-                loginHint.takeIf { it.startsWith(MSISDN_PREFIX) }
-                        ?: "$MSISDN_PREFIX$loginHint".also {
-                            logger.debug(
-                                    "Converting login_hint to MSISDN format: $loginHint -> $it"
-                            )
-                        }
-
         val scopeWithDefault = scope.toMutableList()
         if (!scopeWithDefault.contains(DEFAULT_SCOPE)) {
             logger.debug("Adding '$DEFAULT_SCOPE' to requested scopes since it was missing")
@@ -79,7 +71,7 @@ class VippsBackchannelClient(
 
         val requestBody =
                 buildMap<String, Any> {
-                    put(PARAM_LOGIN_HINT, formattedLoginHint)
+                    put(PARAM_LOGIN_HINT, loginHint)
                     put(PARAM_SCOPE, scopeWithDefault.joinToString(" "))
                     bindingMessage?.let { put(PARAM_BINDING_MESSAGE, it) }
                 }
@@ -120,6 +112,30 @@ class VippsBackchannelClient(
                         .response()
 
         return handleTokenResponse(httpResponse)
+    }
+
+    /**
+     * Fetch user claims from the userinfo endpoint
+     *
+     * @param accessToken The access token received from the token endpoint
+     * @return Map containing user claims (sub, name, email, etc.)
+     */
+    fun fetchUserInfo(accessToken: String): Map<String, Any> {
+        logger.debug("Fetching user info from userinfo endpoint")
+
+        val userInfoEndpoint = vippsManagedObject.getConfigurationValueOfType(
+                URI::class.java,
+                "userinfo_endpoint"
+        )
+
+        val httpResponse =
+                getWebserviceClientFor(userInfoEndpoint)
+                        .request()
+                        .header(HEADER_AUTHORIZATION, "Bearer $accessToken")
+                        .get()
+                        .response()
+
+        return handleUserInfoResponse(httpResponse)
     }
 
     private fun handleBackchannelAuthenticationResponse(httpResponse: HttpResponse): String {
@@ -174,6 +190,25 @@ class VippsBackchannelClient(
                     throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
             else -> {
                 logger.warn("Unexpected response code $statusCode from Vipps token endpoint")
+                throw exceptionFactory.internalServerException(ErrorCode.EXTERNAL_SERVICE_ERROR)
+            }
+        }
+    }
+
+    private fun handleUserInfoResponse(httpResponse: HttpResponse): Map<String, Any> {
+        val statusCode = httpResponse.statusCode()
+        val responseBody = httpResponse.body(HttpResponse.asString())
+
+        logger.debug("UserInfo response: status = {}, body = {}", statusCode, responseBody)
+
+        return when (statusCode) {
+            200 -> json.fromJson(responseBody)
+            401, 403 -> {
+                logger.warn("Access denied to userinfo endpoint: $statusCode")
+                throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
+            }
+            else -> {
+                logger.warn("Unexpected response code $statusCode from Vipps userinfo endpoint")
                 throw exceptionFactory.internalServerException(ErrorCode.EXTERNAL_SERVICE_ERROR)
             }
         }

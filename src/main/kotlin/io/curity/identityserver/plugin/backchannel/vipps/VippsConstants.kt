@@ -45,6 +45,7 @@ object VippsConstants {
     const val ERROR_SLOW_DOWN = "slow_down"
     const val ERROR_EXPIRED_TOKEN = "expired_token"
     const val ERROR_ACCESS_DENIED = "access_denied"
+    const val ERROR_UNKNOWN_USER = "unknown_user"
 
     // Default scope
     const val DEFAULT_SCOPE = "openid"
