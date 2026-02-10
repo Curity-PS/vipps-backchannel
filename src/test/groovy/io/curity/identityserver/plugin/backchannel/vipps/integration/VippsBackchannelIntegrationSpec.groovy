@@ -154,12 +154,61 @@ class VippsBackchannelIntegrationSpec extends Specification {
         parseJson(bcResponse)?.error == "invalid_request"
     }
 
-    private HttpResponse<String> startCibaFlow(String runtimeUrl, String loginHint = SUBJECT) {
+    def "Valid binding message is accepted"() {
+        given: "a valid binding message"
+        def runtimeUrl = curityServer.runtimeUrl
+
+        when: "initiating backchannel authentication with valid binding message"
+        def bcResponse = startCibaFlow(runtimeUrl, SUBJECT_MSISDN, bindingMessage)
+        def bcBody = parseJson(bcResponse)
+
+        then: "the request is accepted"
+        bcResponse.statusCode() == 200
+        bcBody.auth_req_id != null
+
+        where:
+        bindingMessage | _
+        "ABC123"       | _
+        "ABC-123"      | _
+        "ABC12"        | _
+        "ABC12345"     | _
+        "A-B-C-12"     | _
+    }
+
+    def "Invalid binding message is rejected"() {
+        given: "an invalid binding message"
+        def runtimeUrl = curityServer.runtimeUrl
+
+        when: "initiating backchannel authentication with invalid binding message"
+        def bcResponse = startCibaFlow(runtimeUrl, SUBJECT_MSISDN, bindingMessage)
+
+        then: "the request is rejected with invalid_request error"
+        bcResponse.statusCode() == 400
+        def errorBody = parseJson(bcResponse)
+        errorBody.error == "invalid_request"
+
+        where:
+        bindingMessage | _
+        "ABC1"         | _
+        "ABC12345X"    | _
+        "abc123"       | _
+        "ABC@123"      | _
+        "ABC 123"      | _
+    }
+
+
+
+    private HttpResponse<String> startCibaFlow(String runtimeUrl, String loginHint = SUBJECT, String bindingMessage = null) {
+        def bodyParams = "scope=openid&login_hint=$loginHint"
+        if (bindingMessage) {
+            bodyParams += "&binding_message=$bindingMessage"
+        }
+
         def request = HttpRequest.newBuilder()
                 .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-backchannel-authentication"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Authorization", basicAuth())
-                .POST(HttpRequest.BodyPublishers.ofString("scope=openid&login_hint=$loginHint"))
+                .POST(HttpRequest.BodyPublishers.ofString(bodyParams))
                 .build()
 
         httpClient.send(request, HttpResponse.BodyHandlers.ofString())

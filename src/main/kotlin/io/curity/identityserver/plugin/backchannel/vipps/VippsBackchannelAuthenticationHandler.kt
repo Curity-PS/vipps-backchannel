@@ -50,6 +50,7 @@ class VippsBackchannelAuthenticationHandler(
     private val sessionManager = config.sessionManager
     private val client: VippsBackchannelClient =
         VippsBackchannelClient(config, vippsOpenIdManagedObject)
+    private val bindingMessageRegex = Regex("^[A-Z0-9\\-]{5,8}$")
 
     /**
      * Start the backchannel authentication flow with Vipps
@@ -68,6 +69,14 @@ class VippsBackchannelAuthenticationHandler(
                 OAuthError.invalid_request.toString(), "login_hint missing msisdn prefix"
             )
         }
+
+        if (authRequest.bindingMessage != null && !bindingMessageRegex.matches(authRequest.bindingMessage)) {
+            return BackchannelStartAuthenticationResult.error(
+                OAuthError.invalid_request.toString(),
+                "binding_message is invalid. Must contain only capital letters (A-Z), numbers (0-9), and hyphens (-), and be between 5 and 8 characters long"
+            )
+        }
+
         logger.debug("Starting Vipps backchannel authentication for subject: ${authRequest.subject}")
 
         return try {
