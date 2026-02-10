@@ -109,6 +109,12 @@ class VippsBackchannelIntegrationSpec extends Specification {
         secondPollBody.access_token != null
         secondPollBody.token_type == "bearer"
         secondPollBody.expires_in != null
+
+        and: "The subject of the access token is the expected user"
+        def introspectResponse = introspect(runtimeUrl, secondPollBody.access_token as String)
+        def introspectBody = parseJson(introspectResponse)
+        introspectBody.sub == SUBJECT_MSISDN
+
     }
 
     def "login_hint already in urn:msisdn format is accepted"() {
@@ -163,6 +169,18 @@ class VippsBackchannelIntegrationSpec extends Specification {
         def body = "grant_type=urn:openid:params:grant-type:ciba&auth_req_id=${authReqId}"
         def request = HttpRequest.newBuilder()
                 .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-token"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", basicAuth())
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+    }
+
+    private HttpResponse<String> introspect(String runtimeUrl, String accessToken) {
+        def body = "token_type_hint=access_token&token=${accessToken}"
+        def request = HttpRequest.newBuilder()
+                .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-introspect"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Authorization", basicAuth())
                 .POST(HttpRequest.BodyPublishers.ofString(body))

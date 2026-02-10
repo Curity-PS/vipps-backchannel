@@ -58,8 +58,8 @@
                                 <user-authentication>
                                 </user-authentication>
                                 <capabilities>
-                                    <backchannel-authentication>
-                                    </backchannel-authentication>
+                                    <backchannel-authentication/>
+                                    <introspection/>
                                 </capabilities>
                             </client>
                         </config-backed>
