@@ -20,18 +20,18 @@ import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_AC
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_AUTHORIZATION_PENDING
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_EXPIRED_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_SLOW_DOWN
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_UNKNOWN_USER
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.MSISDN_PREFIX
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ACCESS_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ID_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.SESSION_ACCESS_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.SESSION_AUTH_REQ_ID
-import io.curity.identityserver.plugins.attributes.ValidatedJwtAttributes
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryConfiguration
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryManagedObject
-import java.util.Optional
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import se.curity.identityserver.sdk.attribute.Attribute
+import se.curity.identityserver.sdk.attribute.Attributes
 import se.curity.identityserver.sdk.attribute.AuthenticationAttributes
 import se.curity.identityserver.sdk.attribute.ContextAttributes
 import se.curity.identityserver.sdk.attribute.SubjectAttributes
@@ -40,20 +40,21 @@ import se.curity.identityserver.sdk.authentication.BackchannelAuthenticationRequ
 import se.curity.identityserver.sdk.authentication.BackchannelAuthenticationResult
 import se.curity.identityserver.sdk.authentication.BackchannelAuthenticatorState
 import se.curity.identityserver.sdk.authentication.BackchannelStartAuthenticationResult
+import java.util.Optional
 
 /** Backchannel authentication handler for Vipps CIBA flow */
 class VippsBackchannelAuthenticationHandler(
-        private val config: VippsAuthenticatorConfig,
-        private val vippsOpenIdManagedObject:
-                OpenIdDiscoveryManagedObject<OpenIdDiscoveryConfiguration>,
+    private val config: VippsAuthenticatorConfig,
+    private val vippsOpenIdManagedObject:
+    OpenIdDiscoveryManagedObject<OpenIdDiscoveryConfiguration>,
 ) : BackchannelAuthenticationHandler {
     private val logger: Logger =
-            LoggerFactory.getLogger(VippsBackchannelAuthenticationHandler::class.java)
+        LoggerFactory.getLogger(VippsBackchannelAuthenticationHandler::class.java)
     private val sessionManager = config.sessionManager
     private val client: VippsBackchannelClient =
-            VippsBackchannelClient(config, vippsOpenIdManagedObject)
+        VippsBackchannelClient(config, vippsOpenIdManagedObject)
 
-    private val STANDARD_JWT_CLAIMS = setOf("sub", "aud", "iss", "azp", "iat", "exp", "nonce")
+    private val RESERVED_CLAIMS = setOf("sub", "aud", "iss", "azp", "iat", "exp", "nonce")
 
     /**
      * Start the backchannel authentication flow with Vipps
@@ -64,34 +65,35 @@ class VippsBackchannelAuthenticationHandler(
      * @return Result indicating success or failure
      */
     override fun startAuthentication(
-            authReqId: String,
-            authRequest: BackchannelAuthenticationRequest
+        authReqId: String,
+        authRequest: BackchannelAuthenticationRequest
     ): BackchannelStartAuthenticationResult {
-        logger.debug(
-                "Starting Vipps backchannel authentication for subject: ${authRequest.subject}"
-        )
+        if (!authRequest.subject.startsWith(MSISDN_PREFIX)) {
+            return BackchannelStartAuthenticationResult.error(ERROR_UNKNOWN_USER, "login_hint missing msisdn prefix")
+        }
+        logger.debug("Starting Vipps backchannel authentication for subject: ${authRequest.subject}")
 
         return try {
             // Initiate backchannel authentication with Vipps
             val vippsAuthReqId =
-                    client.initiateBackchannelAuthentication(
-                            authRequest.subject,
-                            config.scopes,
-                            authRequest.bindingMessage,
-                    )
+                client.initiateBackchannelAuthentication(
+                    authRequest.subject,
+                    config.scopes,
+                    authRequest.bindingMessage,
+                )
 
             // Store the Vipps auth_req_id in session
             sessionManager.put(Attribute.of(SESSION_AUTH_REQ_ID, vippsAuthReqId))
 
             logger.debug(
-                    "Vipps backchannel authentication started successfully with auth_req_id: $vippsAuthReqId"
+                "Vipps backchannel authentication started successfully with auth_req_id: $vippsAuthReqId"
             )
             BackchannelStartAuthenticationResult.ok()
         } catch (e: RuntimeException) {
             logger.warn("Failed to start Vipps backchannel authentication: ${e.message}", e)
             BackchannelStartAuthenticationResult.error(
-                    "server_error",
-                    "Failed to initiate Vipps authentication"
+                "server_error",
+                "Failed to initiate Vipps authentication"
             )
         }
     }
@@ -103,23 +105,23 @@ class VippsBackchannelAuthenticationHandler(
      * @return Result containing authentication status and attributes (if successful)
      */
     override fun checkAuthenticationStatus(
-            authReqId: String
+        authReqId: String
     ): Optional<BackchannelAuthenticationResult> {
         logger.debug("Checking Vipps authentication status for authReqId: $authReqId")
 
         val vippsAuthReqIdAttr =
-                sessionManager.get(SESSION_AUTH_REQ_ID)
-                        ?: return Optional.of(
-                                        BackchannelAuthenticationResult(
-                                                null,
-                                                BackchannelAuthenticatorState.UNKNOWN
-                                        )
-                                )
-                                .also {
-                                    logger.debug(
-                                            "No auth_req_id found in session for authReqId: $authReqId"
-                                    )
-                                }
+            sessionManager.get(SESSION_AUTH_REQ_ID)
+                ?: return Optional.of(
+                    BackchannelAuthenticationResult(
+                        null,
+                        BackchannelAuthenticatorState.UNKNOWN
+                    )
+                )
+                    .also {
+                        logger.debug(
+                            "No auth_req_id found in session for authReqId: $authReqId"
+                        )
+                    }
 
         val vippsAuthReqId = vippsAuthReqIdAttr.value.toString()
 
@@ -129,7 +131,7 @@ class VippsBackchannelAuthenticationHandler(
         } catch (e: RuntimeException) {
             logger.warn("Error checking authentication status: ${e.message}", e)
             Optional.of(
-                    BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.UNKNOWN)
+                BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.UNKNOWN)
             )
         }
     }
@@ -153,7 +155,8 @@ class VippsBackchannelAuthenticationHandler(
         return when {
             error == null -> handleSuccessfulAuthentication(response)
             error in listOf(ERROR_AUTHORIZATION_PENDING, ERROR_SLOW_DOWN) ->
-                    handlePendingAuthentication(error)
+                handlePendingAuthentication(error)
+
             error == ERROR_EXPIRED_TOKEN -> handleExpiredAuthentication()
             error == ERROR_ACCESS_DENIED -> handleDeniedAuthentication()
             else -> handleUnknownError(error)
@@ -161,42 +164,56 @@ class VippsBackchannelAuthenticationHandler(
     }
 
     private fun handleSuccessfulAuthentication(
-            response: Map<String, Any>
+        response: Map<String, Any>
     ): BackchannelAuthenticationResult {
-        val idToken =
-                response[RESPONSE_ID_TOKEN]?.toString()
-                        ?: run {
-                            logger.warn("Token response missing id_token")
-                            return BackchannelAuthenticationResult(
-                                    null,
-                                    BackchannelAuthenticatorState.FAILED
-                            )
-                        }
+        val accessToken =
+            response[RESPONSE_ACCESS_TOKEN]?.toString()
+                ?: run {
+                    logger.warn("Token response missing access_token")
+                    return BackchannelAuthenticationResult(
+                        null,
+                        BackchannelAuthenticatorState.FAILED
+                    )
+                }
 
-        val accessToken = response[RESPONSE_ACCESS_TOKEN]?.toString()
-        val contextAttributes = accessToken?.let { mapOf("vipps_access_token" to it) } ?: emptyMap()
+        // Fetch user claims from userinfo endpoint using the access token
+        val userInfo = client.fetchUserInfo(accessToken)
 
-        val validatedAttributes = validateIdToken(idToken)
+        val subject =
+            userInfo["sub"]?.toString()
+                ?: run {
+                    logger.warn("UserInfo response missing sub claim")
+                    return BackchannelAuthenticationResult(
+                        null,
+                        BackchannelAuthenticatorState.FAILED
+                    )
+                }
+
+        // Build subject attributes from userinfo claims, excluding reserved claims
+        val userAttributes =
+            userInfo
+                .filterKeys { it !in RESERVED_CLAIMS }
+                .map { (key, value) -> Attribute.of(key, value.toString()) }
+
+        val contextAttributes = mapOf("vipps_access_token" to accessToken)
+
         val authenticationAttributes =
-                AuthenticationAttributes.of(
-                        SubjectAttributes.of(
-                                validatedAttributes.subject,
-                                validatedAttributes.removeAttributes(STANDARD_JWT_CLAIMS)
-                        ),
-                        ContextAttributes.of(contextAttributes),
-                )
+            AuthenticationAttributes.of(
+                SubjectAttributes.of(subject, Attributes.of(userAttributes)),
+                ContextAttributes.of(contextAttributes),
+            )
 
         clearSession()
         return BackchannelAuthenticationResult(
-                authenticationAttributes,
-                BackchannelAuthenticatorState.SUCCEEDED
+            authenticationAttributes,
+            BackchannelAuthenticatorState.SUCCEEDED
         )
     }
 
     private fun handlePendingAuthentication(error: String): BackchannelAuthenticationResult {
         logger.debug(
-                if (error == ERROR_SLOW_DOWN) "Slow down requested"
-                else "Authorization still pending"
+            if (error == ERROR_SLOW_DOWN) "Slow down requested"
+            else "Authorization still pending"
         )
         return BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.STARTED)
     }
@@ -221,14 +238,5 @@ class VippsBackchannelAuthenticationHandler(
     private fun clearSession() {
         sessionManager.remove(SESSION_AUTH_REQ_ID)
         sessionManager.remove(SESSION_ACCESS_TOKEN)
-    }
-
-    /** Validate the ID token received from Vipps and extract subject and attributes */
-    private fun validateIdToken(idToken: String): ValidatedJwtAttributes {
-        return vippsOpenIdManagedObject.jwtValidator.validateJwt(
-                idToken,
-                vippsOpenIdManagedObject.getConfigurationValueOfType(String::class.java, "issuer"),
-                config.clientId
-        )
     }
 }

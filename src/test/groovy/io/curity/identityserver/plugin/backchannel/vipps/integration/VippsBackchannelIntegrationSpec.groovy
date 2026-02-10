@@ -29,6 +29,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+
 /**
  * Integration test for Vipps Backchannel Authentication plugin
  *
@@ -53,16 +54,17 @@ class VippsBackchannelIntegrationSpec extends Specification {
 
     def setupSpec() {
         httpClient = HttpClient.newBuilder()
-            .sslContext(createTrustAllSslContext())
-            .build()
+                .sslContext(createTrustAllSslContext())
+                .build()
 
         mockVipps.start()
         mockVipps.stubStartAuthentication()
         mockVipps.stubTokenEndpoint()
+        mockVipps.stubUserInfoEndpoint()
 
         curityServer = new CurityServerContainer(
-            "src/test/resources/vipps-config.xml",
-            "build/vipps-backchannel"
+                "src/test/resources/vipps-config.xml",
+                "build/release/vipps-backchannel"
         )
         curityServer.start()
     }
@@ -106,21 +108,7 @@ class VippsBackchannelIntegrationSpec extends Specification {
         secondPoll.statusCode() == 200
         secondPollBody.access_token != null
         secondPollBody.token_type == "bearer"
-        secondPollBody.id_token != null
         secondPollBody.expires_in != null
-    }
-
-    def "login_hint without urn:msisdn prefix is auto-converted by the plugin"() {
-        given: "a registered user and a plain phone number login_hint"
-        def runtimeUrl = curityServer.runtimeUrl
-
-        when: "initiating backchannel authentication with a plain phone number"
-        def bcResponse = startCibaFlow(runtimeUrl, SUBJECT)
-        def bcBody = parseJson(bcResponse)
-
-        then: "the plugin converts it to urn:msisdn format and Vipps accepts it"
-        bcResponse.statusCode() == 200
-        bcBody.auth_req_id != null
     }
 
     def "login_hint already in urn:msisdn format is accepted"() {
@@ -141,10 +129,11 @@ class VippsBackchannelIntegrationSpec extends Specification {
         def runtimeUrl = curityServer.runtimeUrl
 
         when: "initiating backchannel authentication for an unknown user"
-        def bcResponse = startCibaFlow(runtimeUrl, "4799999999")
+        def bcResponse = startCibaFlow(runtimeUrl, "urn:msisdn:4799999999")
 
         then: "the request is rejected"
-        bcResponse.statusCode() != 200
+        bcResponse.statusCode() == 400
+        parseJson(bcResponse)?.error == "unknown_user"
     }
 
     def "Invalid login_hint format is rejected by Vipps"() {
@@ -152,21 +141,20 @@ class VippsBackchannelIntegrationSpec extends Specification {
         def runtimeUrl = curityServer.runtimeUrl
 
         when: "initiating backchannel authentication with an invalid login_hint"
-        def bcResponse = startCibaFlow(runtimeUrl, "urn:msisdn:invalid_hint")
+        def bcResponse = startCibaFlow(runtimeUrl, "invalid_hint")
 
         then: "the request is rejected"
-        bcResponse.statusCode() != 200
+        bcResponse.statusCode() == 400
+        parseJson(bcResponse)?.error == "unknown_user"
     }
-
-    // ---------------------------------------------------------- helpers
 
     private HttpResponse<String> startCibaFlow(String runtimeUrl, String loginHint = SUBJECT) {
         def request = HttpRequest.newBuilder()
-            .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-backchannel-authentication"))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Authorization", basicAuth())
-            .POST(HttpRequest.BodyPublishers.ofString("scope=openid&login_hint=$loginHint"))
-            .build()
+                .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-backchannel-authentication"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", basicAuth())
+                .POST(HttpRequest.BodyPublishers.ofString("scope=openid&login_hint=$loginHint"))
+                .build()
 
         httpClient.send(request, HttpResponse.BodyHandlers.ofString())
     }
@@ -174,11 +162,11 @@ class VippsBackchannelIntegrationSpec extends Specification {
     private HttpResponse<String> pollTokenEndpoint(String runtimeUrl, String authReqId) {
         def body = "grant_type=urn:openid:params:grant-type:ciba&auth_req_id=${authReqId}"
         def request = HttpRequest.newBuilder()
-            .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-token"))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Authorization", basicAuth())
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build()
+                .uri(URI.create("${runtimeUrl}/oauth/v2/oauth-token"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Authorization", basicAuth())
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
 
         httpClient.send(request, HttpResponse.BodyHandlers.ofString())
     }
@@ -193,11 +181,13 @@ class VippsBackchannelIntegrationSpec extends Specification {
 
     private static SSLContext createTrustAllSslContext() {
         def trustAllCerts = [
-            new X509TrustManager() {
-                X509Certificate[] getAcceptedIssuers() { null }
-                void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                void checkServerTrusted(X509Certificate[] certs, String authType) {}
-            }
+                new X509TrustManager() {
+                    X509Certificate[] getAcceptedIssuers() { null }
+
+                    void checkClientTrusted(X509Certificate[] certs, String authType) {}
+
+                    void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                }
         ] as TrustManager[]
 
         def sc = SSLContext.getInstance("TLS")

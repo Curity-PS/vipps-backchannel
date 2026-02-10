@@ -24,14 +24,6 @@ import com.github.tomakehurst.wiremock.extension.ResponseDefinitionTransformerV2
 import com.github.tomakehurst.wiremock.http.ResponseDefinition
 import com.github.tomakehurst.wiremock.stubbing.Scenario
 import com.github.tomakehurst.wiremock.stubbing.ServeEvent
-import com.nimbusds.jose.JWSAlgorithm
-import com.nimbusds.jose.JWSHeader
-import com.nimbusds.jose.crypto.RSASSASigner
-import com.nimbusds.jose.jwk.JWKSet
-import com.nimbusds.jose.jwk.RSAKey
-import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
-import com.nimbusds.jwt.JWTClaimsSet
-import com.nimbusds.jwt.SignedJWT
 import groovy.json.JsonOutput
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -67,14 +59,17 @@ class MockVippsService {
     private static final int DEFAULT_PORT = 8888
     private static final String BC_AUTHORIZE_TRANSFORMER = "bc-authorize-capture"
     private static final String TOKEN_TRANSFORMER = "ciba-token-transformer"
+    private static final String USERINFO_TRANSFORMER = "userinfo-transformer"
     private static  Logger _logger= LoggerFactory.getLogger(MockVippsService.class)
 
 
     private final int port
     private WireMockServer server
-    private RSAKey rsaKey
 
+    /** Maps auth_req_id to login_hint (subject) */
     private static final Map<String, String> authnRequests = [:].asSynchronized()
+    /** Maps access_token to login_hint (subject) for userinfo lookups */
+    private static final Map<String, String> accessTokens = [:].asSynchronized()
     private static final Set<String> registeredUsers = ([] as Set).asSynchronized()
 
     private static final MSISDN_PATTERN = ~/^urn:msisdn:(46|45|47|358|299)\d+$/
@@ -98,22 +93,15 @@ class MockVippsService {
      * Curity container can resolve endpoints on startup.
      */
     void start() {
-        // Generate an RSA key pair for signing ID tokens
-        rsaKey = new RSAKeyGenerator(2048)
-            .keyID("test-key-1")
-            .algorithm(JWSAlgorithm.RS256)
-            .generate()
-
         server = new WireMockServer(WireMockConfiguration.options()
             .port(port)
-            .extensions(new BcAuthorizeCaptureTransformer(), new CibaTokenTransformer()))
+            .extensions(new BcAuthorizeCaptureTransformer(), new CibaTokenTransformer(), new UserInfoTransformer()))
         server.start()
         WireMock.configureFor("localhost", port)
 
         Testcontainers.exposeHostPorts(port)
 
         stubDiscoveryEndpoint()
-        stubJwksEndpoint()
     }
 
     void stop() {
@@ -124,16 +112,17 @@ class MockVippsService {
     void resetRequests() {
         server.resetRequests()
         authnRequests.clear()
+        accessTokens.clear()
         registeredUsers.clear()
     }
 
-    /** Remove all stubs and requests, then re-register the discovery and JWKS stubs. */
+    /** Remove all stubs and requests, then re-register the discovery stub. */
     void reset() {
         server.resetAll()
         authnRequests.clear()
+        accessTokens.clear()
         registeredUsers.clear()
         stubDiscoveryEndpoint()
-        stubJwksEndpoint()
     }
 
     /**
@@ -223,45 +212,19 @@ class MockVippsService {
                 .withTransformers(TOKEN_TRANSFORMER)))
     }
 
-    // ---------------------------------------------------------- JWT helpers
-
     /**
-     * Create a signed ID token (RS256) with standard OIDC claims.
+     * Stub the userinfo endpoint to return user claims.
+     * The subject is looked up from the access token issued by the token endpoint.
      */
-    private String createSignedIdToken(String issuer, String subject, String audience) {
-        def now = new Date()
-        def expiration = new Date(now.time + 300_000) // 5 minutes
-
-        def claims = new JWTClaimsSet.Builder()
-            .issuer(issuer)
-            .subject(subject)
-            .audience(audience)
-            .issueTime(now)
-            .expirationTime(expiration)
-            .jwtID(UUID.randomUUID().toString())
-            .build()
-
-        def header = new JWSHeader.Builder(JWSAlgorithm.RS256)
-            .keyID(rsaKey.keyID)
-            .build()
-
-        def signedJWT = new SignedJWT(header, claims)
-        signedJWT.sign(new RSASSASigner(rsaKey))
-
-        return signedJWT.serialize()
-    }
-
-    // ----------------------------------------------------- private stubs
-
-    private void stubJwksEndpoint() {
-        def jwkSet = new JWKSet(rsaKey.toPublicJWK())
-
-        server.stubFor(get(urlEqualTo("${BASE_PATH}/.well-known/jwks.json"))
+    void stubUserInfoEndpoint() {
+        server.stubFor(get(urlEqualTo("${BASE_PATH}/userinfo"))
             .willReturn(aResponse()
                 .withStatus(200)
                 .withHeader("Content-Type", "application/json")
-                .withBody(jwkSet.toString())))
+                .withTransformers(USERINFO_TRANSFORMER)))
     }
+
+    // ----------------------------------------------------- private stubs
 
     private void stubDiscoveryEndpoint() {
         def baseUrl = "http://host.testcontainers.internal:${port}${BASE_PATH}"
@@ -270,11 +233,11 @@ class MockVippsService {
             issuer                                    : "${baseUrl}/",
             authorization_endpoint                    : "${baseUrl}/authorize",
             token_endpoint                            : "${baseUrl}/token",
-            backchannel_authentication_endpoint        : "${baseUrl}/bc-authorize",
-            jwks_uri                                  : "${baseUrl}/.well-known/jwks.json",
+            userinfo_endpoint                         : "${baseUrl}/userinfo",
+            jwks_uri                                  : "${baseUrl}/jwks",
+            backchannel_authentication_endpoint       : "${baseUrl}/bc-authorize",
             response_types_supported                  : ["code"],
             subject_types_supported                   : ["pairwise"],
-            id_token_signing_alg_values_supported     : ["RS256"],
             grant_types_supported                     : ["authorization_code", "urn:openid:params:grant-type:ciba"],
             backchannel_token_delivery_modes_supported: ["poll"]
         ]
@@ -284,6 +247,13 @@ class MockVippsService {
                 .withStatus(200)
                 .withHeader("Content-Type", "application/json")
                 .withBody(JsonOutput.toJson(discoveryDocument))))
+
+        // JWKS endpoint (required by OpenIdDiscoveryManagedObject even though we use userinfo)
+        server.stubFor(get(urlEqualTo("${BASE_PATH}/jwks"))
+            .willReturn(aResponse()
+                .withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody(JsonOutput.toJson([keys: []]))))
     }
 
     // ------------------------------------------------- form body parsing
@@ -385,10 +355,9 @@ class MockVippsService {
     }
 
     /**
-     * Dynamically builds the token success response with a signed ID token.
-     * The {@code sub} claim is taken from the captured {@code login_hint},
-     * and the {@code aud} claim is the {@code client_id} from the Basic
-     * auth header.
+     * Dynamically builds the token success response.
+     * Stores the access token → subject mapping so that the userinfo
+     * endpoint can return the correct claims.
      */
     private class CibaTokenTransformer implements ResponseDefinitionTransformerV2 {
 
@@ -411,22 +380,18 @@ class MockVippsService {
                         .build()
             }
 
-            def issuer = "http://host.testcontainers.internal:${port}${BASE_PATH}/"
-
-            def authHeader = request.getHeader("Authorization")
-            def clientId = extractClientId(authHeader) ?: "unknown-client"
             def subject = authnRequests.remove(authReqId)
-
             def accessToken = UUID.randomUUID().toString()
             def expiresIn = 300
 
-            def signedIdToken = createSignedIdToken(issuer, subject, clientId)
+            // Store access token → subject mapping for userinfo lookups
+            accessTokens.put(accessToken, subject)
+            _logger.info("Issued access token $accessToken for subject $subject")
 
             def responseBody = JsonOutput.toJson([
                 access_token: accessToken,
                 token_type  : "Bearer",
-                expires_in  : expiresIn,
-                id_token    : signedIdToken
+                expires_in  : expiresIn
             ])
 
             return new ResponseDefinitionBuilder()
@@ -438,6 +403,63 @@ class MockVippsService {
 
         @Override
         String getName() { TOKEN_TRANSFORMER }
+
+        @Override
+        boolean applyGlobally() { false }
+    }
+
+    /**
+     * Returns user claims based on the access token in the Authorization header.
+     */
+    private class UserInfoTransformer implements ResponseDefinitionTransformerV2 {
+
+        @Override
+        ResponseDefinition transform(ServeEvent serveEvent) {
+            def request = serveEvent.request
+            def authHeader = request.getHeader("Authorization")
+            _logger.info("Incoming userinfo request with Authorization: $authHeader")
+
+            if (!authHeader?.startsWith("Bearer ")) {
+                _logger.info("Missing or invalid Bearer token")
+                return new ResponseDefinitionBuilder()
+                        .withStatus(401)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(JsonOutput.toJson([
+                                error: "invalid_token",
+                                error_description: "Missing or invalid Bearer token"
+                        ]))
+                        .build()
+            }
+
+            def accessToken = authHeader.substring(7)
+            def subject = accessTokens.get(accessToken)
+
+            if (!subject) {
+                _logger.info("Unknown access token: $accessToken")
+                return new ResponseDefinitionBuilder()
+                        .withStatus(401)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(JsonOutput.toJson([
+                                error: "invalid_token",
+                                error_description: "Unknown or expired access token"
+                        ]))
+                        .build()
+            }
+
+            _logger.info("Returning userinfo for subject: $subject")
+            def responseBody = JsonOutput.toJson([
+                sub: subject
+            ])
+
+            return new ResponseDefinitionBuilder()
+                .withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody(responseBody)
+                .build()
+        }
+
+        @Override
+        String getName() { USERINFO_TRANSFORMER }
 
         @Override
         boolean applyGlobally() { false }
