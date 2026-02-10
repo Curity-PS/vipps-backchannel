@@ -298,7 +298,7 @@ class MockVippsService {
                         .withStatus(400)
                         .withHeader("Content-Type", "application/json")
                         .withBody(JsonOutput.toJson([
-                                error: "authentication_failed",
+                                error: "invalid_request",
                                 error_description : "Missing login_hint",
                         ]))
                         .build()
@@ -326,7 +326,7 @@ class MockVippsService {
                         .withStatus(400)
                         .withHeader("Content-Type", "application/json")
                         .withBody(JsonOutput.toJson([
-                                error            : "invalid_user",
+                                error            : "unknown_user_id",
                                 error_description: "To log in with Vipps you need to have an active Vipps app on your phone and be at least 15 years old.",
                         ]))
                         .build()
