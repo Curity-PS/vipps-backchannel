@@ -21,6 +21,7 @@ object VippsConstants {
     // Session keys
     const val SESSION_AUTH_REQ_ID = "vipps-auth-req-id"
     const val SESSION_ACCESS_TOKEN = "vipps-access-token"
+    const val SESSION_LOGIN_HINT = "vipps-login-hint"
 
     // HTTP Headers
     const val HEADER_AUTHORIZATION = "Authorization"
@@ -36,6 +37,11 @@ object VippsConstants {
     const val RESPONSE_ID_TOKEN = "id_token"
     const val RESPONSE_ERROR = "error"
     const val RESPONSE_ERROR_DESCRIPTION = "error_description"
+
+    // Vipps-specific error codes for backchannel authentication
+    const val VIPPS_ERROR_INVALID_USER = "invalid_user"
+    const val VIPPS_ERROR_INVALID_REQUEST = "invalid_request"
+    const val VIPPS_ERROR_AUTHENTICATION_FAILED = "authentication_failed"
 
     // CIBA grant type
     const val GRANT_TYPE_CIBA = "urn:openid:params:grant-type:ciba"

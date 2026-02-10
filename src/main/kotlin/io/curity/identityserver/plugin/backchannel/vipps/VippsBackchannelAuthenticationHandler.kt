@@ -26,6 +26,7 @@ import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.SESSION_ACCESS_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.SESSION_AUTH_REQ_ID
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.SESSION_LOGIN_HINT
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryConfiguration
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryManagedObject
 import org.slf4j.Logger
@@ -54,8 +55,6 @@ class VippsBackchannelAuthenticationHandler(
     private val client: VippsBackchannelClient =
         VippsBackchannelClient(config, vippsOpenIdManagedObject)
 
-    private val RESERVED_CLAIMS = setOf("sub", "aud", "iss", "azp", "iat", "exp", "nonce")
-
     /**
      * Start the backchannel authentication flow with Vipps
      *
@@ -82,8 +81,9 @@ class VippsBackchannelAuthenticationHandler(
                     authRequest.bindingMessage,
                 )
 
-            // Store the Vipps auth_req_id in session
+            // Store the Vipps auth_req_id and login_hint in session
             sessionManager.put(Attribute.of(SESSION_AUTH_REQ_ID, vippsAuthReqId))
+            sessionManager.put(Attribute.of(SESSION_LOGIN_HINT, authRequest.subject))
 
             logger.debug(
                 "Vipps backchannel authentication started successfully with auth_req_id: $vippsAuthReqId"
@@ -179,27 +179,30 @@ class VippsBackchannelAuthenticationHandler(
         // Fetch user claims from userinfo endpoint using the access token
         val userInfo = client.fetchUserInfo(accessToken)
 
-        val subject =
-            userInfo["sub"]?.toString()
+        val vippsSub =
+            userInfo["sub"] as? String
                 ?: run {
-                    logger.warn("UserInfo response missing sub claim")
-                    return BackchannelAuthenticationResult(
-                        null,
-                        BackchannelAuthenticatorState.FAILED
-                    )
+                    logger.debug("UserInfo response missing sub claim")
                 }
 
-        // Build subject attributes from userinfo claims, excluding reserved claims
-        val userAttributes =
-            userInfo
-                .filterKeys { it !in RESERVED_CLAIMS }
-                .map { (key, value) -> Attribute.of(key, value.toString()) }
+        val loginHintAttr = sessionManager.get(SESSION_LOGIN_HINT)
+        val subject = loginHintAttr?.getOptionalValueOfType(String::class.java)
+            ?: run {
+                logger.warn("No login_hint found in session")
+                return BackchannelAuthenticationResult(
+                    null,
+                    BackchannelAuthenticatorState.FAILED
+                )
+            }
 
-        val contextAttributes = mapOf("vipps_access_token" to accessToken)
+        val contextAttributes = mapOf(
+            "vipps_access_token" to accessToken,
+            "vipps_sub" to vippsSub
+        )
 
         val authenticationAttributes =
             AuthenticationAttributes.of(
-                SubjectAttributes.of(subject, Attributes.of(userAttributes)),
+                SubjectAttributes.of(subject, Attributes.fromMap(userInfo)),
                 ContextAttributes.of(contextAttributes),
             )
 
@@ -238,5 +241,6 @@ class VippsBackchannelAuthenticationHandler(
     private fun clearSession() {
         sessionManager.remove(SESSION_AUTH_REQ_ID)
         sessionManager.remove(SESSION_ACCESS_TOKEN)
+        sessionManager.remove(SESSION_LOGIN_HINT)
     }
 }
