@@ -34,24 +34,11 @@ object VippsConstants {
 
     const val RESPONSE_AUTH_REQ_ID = "auth_req_id"
     const val RESPONSE_ACCESS_TOKEN = "access_token"
-    const val RESPONSE_ID_TOKEN = "id_token"
     const val RESPONSE_ERROR = "error"
     const val RESPONSE_ERROR_DESCRIPTION = "error_description"
 
-    // Vipps-specific error codes for backchannel authentication
-    const val VIPPS_ERROR_INVALID_USER = "invalid_user"
-    const val VIPPS_ERROR_INVALID_REQUEST = "invalid_request"
-    const val VIPPS_ERROR_AUTHENTICATION_FAILED = "authentication_failed"
-
     // CIBA grant type
     const val GRANT_TYPE_CIBA = "urn:openid:params:grant-type:ciba"
-
-    // CIBA error codes
-    const val ERROR_AUTHORIZATION_PENDING = "authorization_pending"
-    const val ERROR_SLOW_DOWN = "slow_down"
-    const val ERROR_EXPIRED_TOKEN = "expired_token"
-    const val ERROR_ACCESS_DENIED = "access_denied"
-    const val ERROR_UNKNOWN_USER = "unknown_user"
 
     // Default scope
     const val DEFAULT_SCOPE = "openid"

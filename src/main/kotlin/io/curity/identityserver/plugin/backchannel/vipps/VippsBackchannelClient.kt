@@ -35,6 +35,9 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import se.curity.identityserver.sdk.errors.ErrorCode
 import se.curity.identityserver.sdk.errors.OAuthError
+import se.curity.identityserver.sdk.errors.OAuthError.access_denied
+import se.curity.identityserver.sdk.errors.OAuthError.invalid_request
+import se.curity.identityserver.sdk.errors.OAuthError.unknown_user_id
 import se.curity.identityserver.sdk.http.HttpRequest
 import se.curity.identityserver.sdk.http.HttpResponse
 import se.curity.identityserver.sdk.service.WebServiceClient
@@ -143,16 +146,13 @@ class VippsBackchannelClient(
         val statusCode = httpResponse.statusCode()
         val responseBody = httpResponse.body(HttpResponse.asString())
 
-        logger.debug(
-                "Backchannel authentication response: status = {}, body = {}",
-                statusCode,
-                responseBody
-        )
+        logger.debug("Backchannel authentication response: status = {}, body = {}",
+                statusCode, responseBody)
 
         return when (statusCode) {
             200 -> {
                 val responseMap = json.fromJson(responseBody)
-                responseMap[RESPONSE_AUTH_REQ_ID]?.toString()
+                responseMap[RESPONSE_AUTH_REQ_ID] as? String
                         ?: throw exceptionFactory.internalServerException(
                                 ErrorCode.EXTERNAL_SERVICE_ERROR,
                                 "Missing auth_req_id in response"
@@ -163,15 +163,15 @@ class VippsBackchannelClient(
                 val errorResponse = json.fromJson(responseBody)
                 val errorDescription = errorResponse[RESPONSE_ERROR_DESCRIPTION] as? String
                 when (errorResponse[RESPONSE_ERROR]) {
-                    VippsConstants.VIPPS_ERROR_INVALID_USER -> {
+                    unknown_user_id.toString() -> {
                         logger.debug("Vipps backchannel authentication failed: invalid user")
-                        throw VippsBackchannelException(OAuthError.unknown_user_id, errorDescription)
+                        throw VippsBackchannelException(unknown_user_id, errorDescription)
                     }
-                    VippsConstants.VIPPS_ERROR_INVALID_REQUEST -> {
+                    invalid_request.toString() -> {
                         logger.debug("Vipps backchannel authentication failed: invalid request")
-                        throw VippsBackchannelException(OAuthError.invalid_request, errorDescription)
+                        throw VippsBackchannelException(invalid_request, errorDescription)
                     }
-                    else -> throw VippsBackchannelException(OAuthError.access_denied, errorDescription)
+                    else -> throw VippsBackchannelException(access_denied, errorDescription)
                 }
 
             }
@@ -179,7 +179,7 @@ class VippsBackchannelClient(
                 logger.warn(
                         "Unexpected response code $statusCode from Vipps backchannel authentication endpoint"
                 )
-                throw exceptionFactory.internalServerException(ErrorCode.EXTERNAL_SERVICE_ERROR)
+                throw VippsBackchannelException(invalid_request, "Unexpected response from Vipps")
             }
         }
     }

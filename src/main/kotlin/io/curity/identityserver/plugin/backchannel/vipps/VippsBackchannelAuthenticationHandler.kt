@@ -155,16 +155,14 @@ class VippsBackchannelAuthenticationHandler(
 
     /** Process the token endpoint response and determine authentication state */
     private fun processTokenResponse(response: Map<String, Any>): BackchannelAuthenticationResult {
-        val error = response[RESPONSE_ERROR]?.toString()
+        val error = response[RESPONSE_ERROR] as? String ?: return handleSuccessfulAuthentication(response)
 
-        return when {
-            error == null -> handleSuccessfulAuthentication(response)
-            error in listOf(ERROR_AUTHORIZATION_PENDING, ERROR_SLOW_DOWN) ->
-                handlePendingAuthentication(error)
-
-            error == ERROR_EXPIRED_TOKEN -> handleExpiredAuthentication()
-            error == ERROR_ACCESS_DENIED -> handleDeniedAuthentication()
-            else -> handleUnknownError(error)
+        return when (val oAuthError = OAuthError.valueOf(error)) {
+            OAuthError.expired_token -> handleExpiredAuthentication()
+            OAuthError.access_denied -> handleDeniedAuthentication()
+            OAuthError.slow_down -> handlePendingAuthentication(oAuthError)
+            OAuthError.authorization_pending -> handlePendingAuthentication(oAuthError)
+            else -> handleUnknownError(oAuthError)
         }
     }
 
@@ -223,11 +221,8 @@ class VippsBackchannelAuthenticationHandler(
         )
     }
 
-    private fun handlePendingAuthentication(error: String): BackchannelAuthenticationResult {
-        logger.debug(
-            if (error == ERROR_SLOW_DOWN) "Slow down requested"
-            else "Authorization still pending"
-        )
+    private fun handlePendingAuthentication(slowDown: OAuthError): BackchannelAuthenticationResult {
+        logger.debug("Slow down requested")
         return BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.STARTED)
     }
 
@@ -243,8 +238,9 @@ class VippsBackchannelAuthenticationHandler(
         return BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.FAILED)
     }
 
-    private fun handleUnknownError(error: String): BackchannelAuthenticationResult {
+    private fun handleUnknownError(error: OAuthError): BackchannelAuthenticationResult {
         logger.warn("Unknown error from Vipps token endpoint: $error")
+        clearSession()
         return BackchannelAuthenticationResult(null, BackchannelAuthenticatorState.UNKNOWN)
     }
 
