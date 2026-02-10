@@ -29,29 +29,28 @@ import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR_DESCRIPTION
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryConfiguration
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryManagedObject
-import java.net.URI
-import java.util.Base64
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import se.curity.identityserver.sdk.errors.ErrorCode
-import se.curity.identityserver.sdk.errors.OAuthError
 import se.curity.identityserver.sdk.errors.OAuthError.access_denied
 import se.curity.identityserver.sdk.errors.OAuthError.invalid_request
 import se.curity.identityserver.sdk.errors.OAuthError.unknown_user_id
 import se.curity.identityserver.sdk.http.HttpRequest
 import se.curity.identityserver.sdk.http.HttpResponse
 import se.curity.identityserver.sdk.service.WebServiceClient
+import java.net.URI
+import java.util.Base64
 
 /** Client for interacting with Vipps CIBA endpoints */
 class VippsBackchannelClient(
-        private val config: VippsAuthenticatorConfig,
-        private val vippsManagedObject: OpenIdDiscoveryManagedObject<OpenIdDiscoveryConfiguration>
+    private val config: VippsAuthenticatorConfig,
+    private val vippsManagedObject: OpenIdDiscoveryManagedObject<OpenIdDiscoveryConfiguration>
 ) {
     private val logger: Logger = LoggerFactory.getLogger(VippsBackchannelClient::class.java)
     private val json = config.json
     private val exceptionFactory = config.exceptionFactory
     private val basicAuthenticationHeader: String =
-            createBasicAuthHeader(config.clientId, config.clientSecret)
+        createBasicAuthHeader(config.clientId, config.clientSecret)
 
     /**
      * Initiate a backchannel authentication request with Vipps
@@ -61,9 +60,9 @@ class VippsBackchannelClient(
      * @return The auth_req_id from Vipps
      */
     fun initiateBackchannelAuthentication(
-            loginHint: String,
-            scope: List<String>,
-            bindingMessage: String?
+        loginHint: String,
+        scope: List<String>,
+        bindingMessage: String?
     ): String {
         logger.debug("Initiating backchannel authentication for user: $loginHint")
 
@@ -74,20 +73,20 @@ class VippsBackchannelClient(
         }
 
         val requestBody =
-                buildMap<String, Any> {
-                    put(PARAM_LOGIN_HINT, loginHint)
-                    put(PARAM_SCOPE, scopeWithDefault.joinToString(" "))
-                    bindingMessage?.let { put(PARAM_BINDING_MESSAGE, it) }
-                }
+            buildMap<String, Any> {
+                put(PARAM_LOGIN_HINT, loginHint)
+                put(PARAM_SCOPE, scopeWithDefault.joinToString(" "))
+                bindingMessage?.let { put(PARAM_BINDING_MESSAGE, it) }
+            }
 
         val httpResponse =
-                getWebserviceClientFor(vippsManagedObject.backChannelAuthenticationEndpoint)
-                        .request()
-                        .contentType("application/x-www-form-urlencoded")
-                        .header(HEADER_AUTHORIZATION, basicAuthenticationHeader)
-                        .body(HttpRequest.createFormUrlEncodedBodyProcessor(requestBody))
-                        .post()
-                        .response()
+            getWebserviceClientFor(vippsManagedObject.backChannelAuthenticationEndpoint)
+                .request()
+                .contentType("application/x-www-form-urlencoded")
+                .header(HEADER_AUTHORIZATION, basicAuthenticationHeader)
+                .body(HttpRequest.createFormUrlEncodedBodyProcessor(requestBody))
+                .post()
+                .response()
 
         return handleBackchannelAuthenticationResponse(httpResponse)
     }
@@ -107,13 +106,13 @@ class VippsBackchannelClient(
         }
 
         val httpResponse =
-                getWebserviceClientFor(vippsManagedObject.tokenEndpoint)
-                        .request()
-                        .contentType("application/x-www-form-urlencoded")
-                        .header(HEADER_AUTHORIZATION, basicAuthenticationHeader)
-                        .body(HttpRequest.createFormUrlEncodedBodyProcessor(requestBody))
-                        .post()
-                        .response()
+            getWebserviceClientFor(vippsManagedObject.tokenEndpoint)
+                .request()
+                .contentType("application/x-www-form-urlencoded")
+                .header(HEADER_AUTHORIZATION, basicAuthenticationHeader)
+                .body(HttpRequest.createFormUrlEncodedBodyProcessor(requestBody))
+                .post()
+                .response()
 
         return handleTokenResponse(httpResponse)
     }
@@ -127,17 +126,14 @@ class VippsBackchannelClient(
     fun fetchUserInfo(accessToken: String): Map<String, Any> {
         logger.debug("Fetching user info from userinfo endpoint")
 
-        val userInfoEndpoint = vippsManagedObject.getConfigurationValueOfType(
-                URI::class.java,
-                "userinfo_endpoint"
-        )
+        val userInfoEndpoint = vippsManagedObject.getConfigurationValueOfType(String::class.java, "userinfo_endpoint")
 
         val httpResponse =
-                getWebserviceClientFor(userInfoEndpoint)
-                        .request()
-                        .header(HEADER_AUTHORIZATION, "Bearer $accessToken")
-                        .get()
-                        .response()
+            getWebserviceClientFor(URI.create(userInfoEndpoint))
+                .request()
+                .header(HEADER_AUTHORIZATION, "Bearer $accessToken")
+                .get()
+                .response()
 
         return handleUserInfoResponse(httpResponse)
     }
@@ -146,38 +142,44 @@ class VippsBackchannelClient(
         val statusCode = httpResponse.statusCode()
         val responseBody = httpResponse.body(HttpResponse.asString())
 
-        logger.debug("Backchannel authentication response: status = {}, body = {}",
-                statusCode, responseBody)
+        logger.debug(
+            "Backchannel authentication response: status = {}, body = {}",
+            statusCode, responseBody
+        )
 
         return when (statusCode) {
             200 -> {
                 val responseMap = json.fromJson(responseBody)
                 responseMap[RESPONSE_AUTH_REQ_ID] as? String
-                        ?: throw exceptionFactory.internalServerException(
-                                ErrorCode.EXTERNAL_SERVICE_ERROR,
-                                "Missing auth_req_id in response"
-                        )
+                    ?: throw exceptionFactory.internalServerException(
+                        ErrorCode.EXTERNAL_SERVICE_ERROR,
+                        "Missing auth_req_id in response"
+                    )
             }
+
             in 400..499 -> {
                 // Parse error response from Vipps
                 val errorResponse = json.fromJson(responseBody)
                 val errorDescription = errorResponse[RESPONSE_ERROR_DESCRIPTION] as? String
-                when (errorResponse[RESPONSE_ERROR]) {
+                when (errorResponse[RESPONSE_ERROR] as? String) {
                     unknown_user_id.toString() -> {
                         logger.debug("Vipps backchannel authentication failed: invalid user")
                         throw VippsBackchannelException(unknown_user_id, errorDescription)
                     }
+
                     invalid_request.toString() -> {
                         logger.debug("Vipps backchannel authentication failed: invalid request")
                         throw VippsBackchannelException(invalid_request, errorDescription)
                     }
+
                     else -> throw VippsBackchannelException(access_denied, errorDescription)
                 }
 
             }
+
             else -> {
                 logger.warn(
-                        "Unexpected response code $statusCode from Vipps backchannel authentication endpoint"
+                    "Unexpected response code $statusCode from Vipps backchannel authentication endpoint"
                 )
                 throw VippsBackchannelException(invalid_request, "Unexpected response from Vipps")
             }
@@ -201,8 +203,10 @@ class VippsBackchannelClient(
                     throw exceptionFactory.badRequestException(ErrorCode.INVALID_INPUT)
                 }
             }
+
             in 401..499 ->
-                    throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
+                throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
+
             else -> {
                 logger.warn("Unexpected response code $statusCode from Vipps token endpoint")
                 throw exceptionFactory.internalServerException(ErrorCode.EXTERNAL_SERVICE_ERROR)
@@ -222,6 +226,7 @@ class VippsBackchannelClient(
                 logger.warn("Access denied to userinfo endpoint: $statusCode")
                 throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
             }
+
             else -> {
                 logger.warn("Unexpected response code $statusCode from Vipps userinfo endpoint")
                 throw exceptionFactory.internalServerException(ErrorCode.EXTERNAL_SERVICE_ERROR)
@@ -232,9 +237,9 @@ class VippsBackchannelClient(
     private fun getWebserviceClientFor(uri: URI): WebServiceClient {
         logger.debug("Creating WebServiceClient for URI: {}", uri)
         return config.webServiceClientFactory
-                .create(vippsManagedObject.httpClient)
-                .withHost("${uri.host}:${uri.port}")
-                .withPath(uri.path)
+            .create(vippsManagedObject.httpClient)
+            .withHost("${uri.host}:${uri.port}")
+            .withPath(uri.path)
     }
 
     private fun createBasicAuthHeader(clientId: String, clientSecret: String): String {
