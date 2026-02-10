@@ -16,10 +16,6 @@
 
 package io.curity.identityserver.plugin.backchannel.vipps
 
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_ACCESS_DENIED
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_AUTHORIZATION_PENDING
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_EXPIRED_TOKEN
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_SLOW_DOWN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.MSISDN_PREFIX
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ACCESS_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
