@@ -19,7 +19,6 @@ package io.curity.identityserver.plugin.backchannel.vipps
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.DEFAULT_SCOPE
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.GRANT_TYPE_CIBA
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.HEADER_AUTHORIZATION
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.MSISDN_PREFIX
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_AUTH_REQ_ID
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_BINDING_MESSAGE
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_GRANT_TYPE
@@ -27,6 +26,7 @@ import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_LO
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.PARAM_SCOPE
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_AUTH_REQ_ID
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
+import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR_DESCRIPTION
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryConfiguration
 import io.curity.identityserver.plugins.oidc.OpenIdDiscoveryManagedObject
 import java.net.URI
@@ -34,6 +34,7 @@ import java.util.Base64
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import se.curity.identityserver.sdk.errors.ErrorCode
+import se.curity.identityserver.sdk.errors.OAuthError
 import se.curity.identityserver.sdk.http.HttpRequest
 import se.curity.identityserver.sdk.http.HttpResponse
 import se.curity.identityserver.sdk.service.WebServiceClient
@@ -158,7 +159,21 @@ class VippsBackchannelClient(
                         )
             }
             in 400..499 -> {
-                throw exceptionFactory.unauthorizedException(ErrorCode.AUTHENTICATION_FAILED)
+                // Parse error response from Vipps
+                val errorResponse = json.fromJson(responseBody)
+                val errorDescription = errorResponse[RESPONSE_ERROR_DESCRIPTION] as? String
+                when (errorResponse[RESPONSE_ERROR]) {
+                    VippsConstants.VIPPS_ERROR_INVALID_USER -> {
+                        logger.debug("Vipps backchannel authentication failed: invalid user")
+                        throw VippsBackchannelException(OAuthError.unknown_user_id, errorDescription)
+                    }
+                    VippsConstants.VIPPS_ERROR_INVALID_REQUEST -> {
+                        logger.debug("Vipps backchannel authentication failed: invalid request")
+                        throw VippsBackchannelException(OAuthError.invalid_request, errorDescription)
+                    }
+                    else -> throw VippsBackchannelException(OAuthError.access_denied, errorDescription)
+                }
+
             }
             else -> {
                 logger.warn(

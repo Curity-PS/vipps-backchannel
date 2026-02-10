@@ -133,7 +133,7 @@ class VippsBackchannelIntegrationSpec extends Specification {
 
         then: "the request is rejected"
         bcResponse.statusCode() == 400
-        parseJson(bcResponse)?.error == "unknown_user"
+        parseJson(bcResponse)?.error == "unknown_user_id"
     }
 
     def "Invalid login_hint format is rejected by Vipps"() {
@@ -145,7 +145,7 @@ class VippsBackchannelIntegrationSpec extends Specification {
 
         then: "the request is rejected"
         bcResponse.statusCode() == 400
-        parseJson(bcResponse)?.error == "unknown_user"
+        parseJson(bcResponse)?.error == "invalid_request"
     }
 
     private HttpResponse<String> startCibaFlow(String runtimeUrl, String loginHint = SUBJECT) {

@@ -20,7 +20,6 @@ import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_AC
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_AUTHORIZATION_PENDING
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_EXPIRED_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_SLOW_DOWN
-import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.ERROR_UNKNOWN_USER
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.MSISDN_PREFIX
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ACCESS_TOKEN
 import io.curity.identityserver.plugin.backchannel.vipps.VippsConstants.RESPONSE_ERROR
@@ -41,6 +40,7 @@ import se.curity.identityserver.sdk.authentication.BackchannelAuthenticationRequ
 import se.curity.identityserver.sdk.authentication.BackchannelAuthenticationResult
 import se.curity.identityserver.sdk.authentication.BackchannelAuthenticatorState
 import se.curity.identityserver.sdk.authentication.BackchannelStartAuthenticationResult
+import se.curity.identityserver.sdk.errors.OAuthError
 import java.util.Optional
 
 /** Backchannel authentication handler for Vipps CIBA flow */
@@ -68,7 +68,9 @@ class VippsBackchannelAuthenticationHandler(
         authRequest: BackchannelAuthenticationRequest
     ): BackchannelStartAuthenticationResult {
         if (!authRequest.subject.startsWith(MSISDN_PREFIX)) {
-            return BackchannelStartAuthenticationResult.error(ERROR_UNKNOWN_USER, "login_hint missing msisdn prefix")
+            return BackchannelStartAuthenticationResult.error(
+                OAuthError.invalid_request.toString(), "login_hint missing msisdn prefix"
+            )
         }
         logger.debug("Starting Vipps backchannel authentication for subject: ${authRequest.subject}")
 
@@ -89,6 +91,9 @@ class VippsBackchannelAuthenticationHandler(
                 "Vipps backchannel authentication started successfully with auth_req_id: $vippsAuthReqId"
             )
             BackchannelStartAuthenticationResult.ok()
+        } catch (e: VippsBackchannelException) {
+            logger.info("Vipps rejected backchannel authentication: ${e.error} - ${e.errorDescription}")
+            BackchannelStartAuthenticationResult.error(e.error.toString(), e.errorDescription)
         } catch (e: RuntimeException) {
             logger.warn("Failed to start Vipps backchannel authentication: ${e.message}", e)
             BackchannelStartAuthenticationResult.error(
@@ -180,15 +185,20 @@ class VippsBackchannelAuthenticationHandler(
         val userInfo = client.fetchUserInfo(accessToken)
 
         val vippsSub =
-            userInfo["sub"] as? String
+            userInfo["sub"]?.toString()
                 ?: run {
-                    logger.debug("UserInfo response missing sub claim")
+                    logger.warn("UserInfo response missing sub claim")
+                    return BackchannelAuthenticationResult(
+                        null,
+                        BackchannelAuthenticatorState.FAILED
+                    )
                 }
 
+        // Retrieve the login_hint from session to use as subject
         val loginHintAttr = sessionManager.get(SESSION_LOGIN_HINT)
         val subject = loginHintAttr?.getOptionalValueOfType(String::class.java)
             ?: run {
-                logger.warn("No login_hint found in session")
+                logger.info("No login_hint found in session")
                 return BackchannelAuthenticationResult(
                     null,
                     BackchannelAuthenticatorState.FAILED
