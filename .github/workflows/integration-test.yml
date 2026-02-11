@@ -31,6 +31,6 @@ jobs:
       - name: Run integration tests
         run: ./gradlew integrationTest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           LICENSE_KEY: ${{ secrets.LICENSE_KEY }}

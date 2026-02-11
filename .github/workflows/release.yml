@@ -11,7 +11,7 @@ jobs:
       contents: read
 
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
       GITHUB_ACTOR: ${{ github.actor }}
 
     steps:
@@ -35,13 +35,13 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
 
       - name: Run integration tests
         run: ./gradlew integrationTest
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
 
@@ -52,7 +52,7 @@ jobs:
     permissions: write-all
 
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
       GITHUB_ACTOR: ${{ github.actor }}
 
     steps:
@@ -74,7 +74,7 @@ jobs:
         id: changelog
         uses: TriPSs/conventional-changelog-action@v5
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PACKAGE_TOKEN }}
           skip-on-empty: "true"
           skip-commit: "true"
           tag-prefix: ''
@@ -95,7 +95,7 @@ jobs:
         uses: actions/create-release@v1
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
         with:
           tag_name: ${{ env.NEW_VERSION }}
           release_name: ${{ env.NEW_VERSION }}
@@ -107,7 +107,7 @@ jobs:
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         run: ./gradlew createReleaseDir -Pversion=${{ env.NEW_VERSION }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
 
       - name: Build plugin artifacts zip
@@ -120,7 +120,7 @@ jobs:
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./plugin-artifacts.zip
