@@ -16,6 +16,21 @@ Restart the Curity Identity Server to load the plugin.
 
 ### Option 2 — Build from source
 
+#### Prerequisites
+
+This project uses dependencies hosted on GitHub Packages. You need to configure your GitHub credentials in `~/.gradle/gradle.properties`:
+
+1. Create a [GitHub Personal Access Token](https://github.com/settings/tokens) with the `read:packages` scope.
+
+2. Add the following to your `~/.gradle/gradle.properties` file (create it if it doesn't exist):
+
+   ```properties
+   gpr.user=YOUR_GITHUB_USERNAME
+   gpr.token=YOUR_GITHUB_TOKEN
+   ```
+
+#### Build
+
 ```bash
 ./gradlew createReleaseDir
 ```
