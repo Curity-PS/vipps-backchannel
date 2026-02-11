@@ -4,8 +4,8 @@ pluginManagement {
         maven {
             url 'https://maven.pkg.github.com/Curity-PS/curity-plugin-dev'
             credentials {
-                username = System.getenv('GITHUB_ACTOR') ?: providers.gradleProperty('gpr.user')
-                password = System.getenv('GITHUB_TOKEN') ?: providers.gradleProperty('gpr.token')
+                username = System.getenv('GITHUB_ACTOR') ?: providers.gradleProperty('gpr.user').getOrNull()
+                password = System.getenv('GITHUB_TOKEN') ?: providers.gradleProperty('gpr.token').getOrNull()
             }
         }
 

@@ -13,6 +13,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_ACTOR: ${{ github.actor }}
+      LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
 
     steps:
       - name: Download code
@@ -25,12 +26,12 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Run integration tests
         run: ./gradlew integrationTest
-        env:
-          LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
