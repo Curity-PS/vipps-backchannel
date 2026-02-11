@@ -10,6 +10,10 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+
     steps:
       - name: Download code
         uses: actions/checkout@v4

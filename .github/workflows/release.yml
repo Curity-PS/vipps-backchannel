@@ -10,6 +10,10 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+
     steps:
       - name: Download code
         uses: actions/checkout@v4
@@ -39,6 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: build_and_package
     permissions: write-all
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
 
     steps:
       - name: Download code
