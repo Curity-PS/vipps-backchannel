@@ -34,10 +34,15 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
 
       - name: Run integration tests
         run: ./gradlew integrationTest
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
           LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
 
 
@@ -101,6 +106,9 @@ jobs:
       - name: Create release jars
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         run: ./gradlew createReleaseDir -Pversion=${{ env.NEW_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
 
       - name: Build plugin artifacts zip
         if: ${{ steps.changelog.outputs.skipped == 'false' }}

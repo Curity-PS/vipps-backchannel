@@ -10,11 +10,6 @@ jobs:
     permissions:
       contents: read
 
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_ACTOR: ${{ github.actor }}
-      LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
-
     steps:
       - name: Download code
         uses: actions/checkout@v4
@@ -35,3 +30,7 @@ jobs:
 
       - name: Run integration tests
         run: ./gradlew integrationTest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
