@@ -2,6 +2,36 @@
 
 A Backchannel Authenticator plugin for the [Curity Identity Server](https://curity.io) that integrates with [Vipps](https://vipps.no) using the CIBA (Client Initiated Backchannel Authentication) polling flow.
 
+## Functionality
+
+The plugin acts as an authenticator for CIBA flows and creates an authentication transaction for the user to approve in the Vipps mobile app.
+
+- **Mobile Authentication**: Creates authentication transactions that users approve in the Vipps mobile app
+- **Binding Messages**: Supports sending binding messages that are displayed to the user in the app for additional context and security
+- **Login Hint Format**: Clients are expected to send `login_hint` in MSISDN format (e.g., `urn:msisdn:4712345678` for Norwegian mobile phone numbers)
+
+The authenticator will call the Vipps `userinfo` endpoint to retrieve user claims after successful authentication. The `login_hint` is used as the subject identifier in Curity, and additional claims are added as subject attributes.
+
+## Configuration
+
+Configure the following parameters in the Curity Identity Server admin UI when setting up the Vipps Backchannel Authenticator:
+
+### Required Parameters
+
+- **Client ID** — Your Vipps client identifier obtained from the Vipps developer portal
+- **Client Secret** — Your Vipps client secret for authentication
+
+### OpenID Configuration
+
+- **HTTP Client** — Optionally select an HTTP client to use for communication with Vipps
+- **Issuer** — The Vipps issuer URL:
+  - **Test environment**: `https://apitest.vipps.no/access-management-1.0/access/`
+  - **Production environment**: `https://api.vipps.no/access-management-1.0/access/`
+
+### Optional Parameters
+
+- **Scopes** — Additional scopes to request from Vipps (e.g., `nin` for Norwegian national identity number). The `openid` scope is always included in the request.
+
 ## Deployment
 
 ### Option 1 — Download a release
