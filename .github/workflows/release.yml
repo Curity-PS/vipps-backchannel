@@ -90,30 +90,25 @@ jobs:
           echo "Creating new version: $NEW_VERSION"
           echo NEW_VERSION=$NEW_VERSION >> $GITHUB_ENV
 
+      - name: Create release zip
+        if: ${{ steps.changelog.outputs.skipped == 'false' }}
+        run: ./gradlew createRelease -Pversion=${{ env.NEW_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
         if: ${{ steps.changelog.outputs.skipped == 'false' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITUHUB_TOKEN }}
         with:
           tag_name: ${{ env.NEW_VERSION }}
           release_name: ${{ env.NEW_VERSION }}
           body: ${{ steps.changelog.outputs.clean_changelog }}
           draft: false
           prerelease: false
-
-      - name: Create release jars
-        if: ${{ steps.changelog.outputs.skipped == 'false' }}
-        run: ./gradlew createReleaseDir -Pversion=${{ env.NEW_VERSION }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-
-      - name: Build plugin artifacts zip
-        if: ${{ steps.changelog.outputs.skipped == 'false' }}
-        run: |
-          zip --junk-paths plugin-artifacts build/release/*
 
       - name: Upload release asset
         id: upload-release-asset
@@ -123,6 +118,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./plugin-artifacts.zip
+          asset_path: ./build/distributions/plugin-artifacts.zip
           asset_name: plugin-artifacts.zip
           asset_content_type: application/zip
