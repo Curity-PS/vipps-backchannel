@@ -6,6 +6,7 @@ on:
 jobs:
   release:
     uses: curity-ps/release-workflow/.github/workflows/release.yml@main
+    permissions: write-all
     secrets:
       PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
       LICENSE_KEY: ${{ secrets.LICENSE_KEY }}
